@@ -8,24 +8,30 @@ import com.zql.longbi.common.DeleteRequest;
 import com.zql.longbi.common.ErrorCode;
 import com.zql.longbi.common.ResultUtils;
 import com.zql.longbi.constant.CommonConstant;
+import com.zql.longbi.constant.FileConstant;
 import com.zql.longbi.constant.UserConstant;
 import com.zql.longbi.exception.BusinessException;
 import com.zql.longbi.exception.ThrowUtils;
-import com.zql.longbi.model.dto.chart.ChartAddRequest;
-import com.zql.longbi.model.dto.chart.ChartEditRequest;
-import com.zql.longbi.model.dto.chart.ChartQueryRequest;
-import com.zql.longbi.model.dto.chart.ChartUpdateRequest;
+import com.zql.longbi.model.dto.chart.*;
+import com.zql.longbi.model.dto.file.UploadFileRequest;
 import com.zql.longbi.model.entity.Chart;
 import com.zql.longbi.model.entity.User;
+import com.zql.longbi.model.enums.FileUploadBizEnum;
 import com.zql.longbi.service.ChartService;
 import com.zql.longbi.service.UserService;
+import com.zql.longbi.utils.ExcelUtils;
 import com.zql.longbi.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.io.File;
 
 /**
  * 帖子接口
@@ -219,6 +225,36 @@ public class ChartController {
     }
 
     /**
+     * 智能分析
+     *
+     * @param multipartFile
+     * @param genChartByAiRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/gen")
+    public BaseResponse<String> getChatByAi(@RequestPart("file") MultipartFile multipartFile,
+                                            GenChartByAiRequest genChartByAiRequest, HttpServletRequest request) {
+        // 从请求对象中获取分析需要的信息
+        String name = genChartByAiRequest.getName();
+        String goal = genChartByAiRequest.getGoal();
+        String chartType = genChartByAiRequest.getChartType();
+        // 校验
+        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
+        //名称不为空，并且名称长度大于100，抛出异常
+        ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 100, ErrorCode.PARAMS_ERROR, "名称异常");
+
+        //用户输入
+        StringBuilder userInput = new StringBuilder();
+        userInput.append("你是一个数据分析师，接下来我会给我的分析目标和原始数据，请告诉我分析结论;").append("\n");
+        userInput.append("分析目标：").append(goal).append("\n");
+        //压缩后的数据
+        String result = ExcelUtils.excelToCsv(multipartFile);
+        userInput.append("数据：").append(result).append("\n");
+        return ResultUtils.success(userInput.toString());
+    }
+
+    /**
      * 获取查询包装类
      *
      * @param chartQueryRequest
@@ -232,6 +268,7 @@ public class ChartController {
 
         Long id = chartQueryRequest.getId();
         String goal = chartQueryRequest.getGoal();
+        String name = chartQueryRequest.getName();
         Long userId = chartQueryRequest.getUserId();
         String chartType = chartQueryRequest.getChartType();
         String sortField = chartQueryRequest.getSortField();
@@ -239,6 +276,7 @@ public class ChartController {
 
         queryWrapper.eq( id != null && id > 0, "id", id);
         queryWrapper.eq(ObjectUtils.isNotEmpty(goal), "goal", goal);
+        queryWrapper.like(ObjectUtils.isNotEmpty(name), "name", name);
         queryWrapper.eq(ObjectUtils.isNotEmpty(chartType), "chartType", chartType);
         queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "userId", userId);
         queryWrapper.eq("isDelete", false);

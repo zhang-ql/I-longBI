@@ -54,9 +54,14 @@ public class ChartUpdateRequest implements Serializable {
     private String genResult;
 
     /**
-     * wait,running,succeed,failed
+     * 创建时间
      */
-    private String status;
+    private Date createTime;
+
+    /**
+     * 更新时间
+     */
+    private Date updateTime;
 
     /**
      * 执行信息
@@ -68,22 +73,5 @@ public class ChartUpdateRequest implements Serializable {
      */
     private Long userId;
 
-    /**
-     * 创建时间
-     */
-    private Date createTime;
-
-    /**
-     * 更新时间
-     */
-    private Date updateTime;
-
-    /**
-     * 是否删除
-     */
-    @TableLogic
-    private Integer isDelete;
-
-    @TableField(exist = false)
     private static final long serialVersionUID = 1L;
 }
