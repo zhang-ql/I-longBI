@@ -252,6 +252,7 @@ public class ChartController {
         String result = ExcelUtils.excelToCsv(multipartFile);
         userInput.append("数据：").append(result).append("\n");
         return ResultUtils.success(userInput.toString());
+
     }
 
     /**
