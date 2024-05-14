@@ -1,5 +1,6 @@
 package com.zql.longbi.controller;
 
+import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zql.longbi.annotation.AuthCheck;
@@ -12,6 +13,7 @@ import com.zql.longbi.constant.UserConstant;
 import com.zql.longbi.exception.BusinessException;
 import com.zql.longbi.exception.ThrowUtils;
 import com.zql.longbi.manager.AiManager;
+import com.zql.longbi.manager.RedisLimiterManager;
 import com.zql.longbi.model.dto.chart.*;
 import com.zql.longbi.model.entity.Chart;
 import com.zql.longbi.model.entity.User;
@@ -24,11 +26,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * 帖子接口
@@ -47,6 +52,8 @@ public class ChartController {
 
     @Resource
     private AiManager aiManager;
+    @Autowired
+    private RedisLimiterManager redisLimiterManager;
 
     // region 增删改查
 
@@ -145,23 +152,7 @@ public class ChartController {
      */
     @PostMapping("/list/page")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Page<Chart>> listchartByPage(@RequestBody ChartQueryRequest chartQueryRequest) {
-        long current = chartQueryRequest.getCurrent();
-        long size = chartQueryRequest.getPageSize();
-        Page<Chart> chartPage = chartService.page(new Page<>(current, size),
-                getQueryWrapper(chartQueryRequest));
-        return ResultUtils.success(chartPage);
-    }
-
-    /**
-     * 分页获取列表（封装类）
-     *
-     * @param chartQueryRequest
-     * @param request
-     * @return
-     */
-    @PostMapping("/list/page/vo")
-    public BaseResponse<Page<Chart>> listchartVOByPage(@RequestBody ChartQueryRequest chartQueryRequest,
+    public BaseResponse<Page<Chart>> listchartByPage(@RequestBody ChartQueryRequest chartQueryRequest,
             HttpServletRequest request) {
         long current = chartQueryRequest.getCurrent();
         long size = chartQueryRequest.getPageSize();
@@ -179,7 +170,7 @@ public class ChartController {
      * @param request
      * @return
      */
-    @PostMapping("/my/list/page/vo")
+    @PostMapping("/my/list/page")
     public BaseResponse<Page<Chart>> listMychartVOByPage(@RequestBody ChartQueryRequest chartQueryRequest,
             HttpServletRequest request) {
         if (chartQueryRequest == null) {
@@ -233,7 +224,7 @@ public class ChartController {
      * @return
      */
     @PostMapping("/gen")
-    public BaseResponse<BiResponse> getChatByAi(@RequestPart("file") MultipartFile multipartFile,
+    public BaseResponse<BiResponse> genChatByAi(@RequestPart("file") MultipartFile multipartFile,
                                                 GenChartByAiRequest genChartByAiRequest, HttpServletRequest request) {
         // 从请求对象中获取分析需要的信息
         String name = genChartByAiRequest.getName();
@@ -243,7 +234,21 @@ public class ChartController {
         ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "目标为空");
         //名称不为空，并且名称长度大于100，抛出异常
         ThrowUtils.throwIf(StringUtils.isNotBlank(name) && name.length() > 100, ErrorCode.PARAMS_ERROR, "名称异常");
+
+        //校验文件
+        long size = multipartFile.getSize();
+        String originalFilename = multipartFile.getOriginalFilename();
+        //校验文件大小
+        final long ONE_MB = 1024 * 1024L;
+        ThrowUtils.throwIf(size > ONE_MB, ErrorCode.PARAMS_ERROR, "文件超过1M");
+        //校验文件后缀 aaa.png
+        String suffix = FileUtil.getSuffix(originalFilename);
+        final List<String> validFileSuffixList = Arrays.asList("jpg", "png", "svg", "webp", "jpeg");
+        ThrowUtils.throwIf(!validFileSuffixList.contains(suffix), ErrorCode.PARAMS_ERROR, "文件后缀非法");
+
         User loginUser = userService.getLoginUser(request);
+        //限流判断，每个用户一个限流器
+        redisLimiterManager.doRateLimit("genChartByAi_" + loginUser.getId());
 
         // 无需写 prompt，直接调用现有模型，https://www.yucongming.com，公众号搜【鱼聪明AI】
 //        final String prompt = "你是一个数据分析师和前端开发专家，接下来我会按照以下固定格式给你提供内容：\n" +
