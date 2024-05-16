@@ -50,7 +50,7 @@ public class Chart implements Serializable {
     private String genResult;
 
     /**
-     * wait,running,succeed,failed
+     * wait,running,succeed,failed 任务状态
      */
     private String status;
 
