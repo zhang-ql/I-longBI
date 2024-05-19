@@ -41,6 +41,12 @@ spring:
     multipart:
       # 大小限制
       max-file-size: 10MB
+  rabbitmq:
+    addresses: localhost
+    port: 5672
+    username: guest
+    password: guest
+#  rabbitmq
 server:
   address: 0.0.0.0
   port: 8101
@@ -106,3 +112,6 @@ yuapi:
   client:
     access-key: fjmkn0uj0f76i4hdey0d9luvvu97n6jj
     secret-key: 2rg0ybvjmyv5njcu7sne4cj9gsi5tgzb
+
+
+
